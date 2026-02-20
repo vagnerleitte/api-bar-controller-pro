@@ -11,7 +11,7 @@ type RegisterBody = {
   password: string;
 };
 
-type LoginBody = { establishmentId: string; password: string };
+type LoginBody = { cpf: string; password: string };
 type RefreshBody = { refreshToken: string };
 
 export const registerHandler = async (request: FastifyRequest<{ Body: RegisterBody }>, reply: FastifyReply) => {
@@ -23,7 +23,7 @@ export const registerHandler = async (request: FastifyRequest<{ Body: RegisterBo
 };
 
 export const loginHandler = async (request: FastifyRequest<{ Body: LoginBody }>, reply: FastifyReply) => {
-  const result = await login(request.server, request.body.establishmentId, request.body.password);
+  const result = await login(request.server, request.body.cpf, request.body.password);
   if (result.statusCode !== 200) {
     return reply.status(result.statusCode).send({ message: result.message });
   }

@@ -2,10 +2,10 @@ import argon2 from 'argon2';
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../../shared/prisma';
 import { env } from '../../config/env';
-import { addDays, createRefreshToken, hashRefreshToken, normalizeDocument } from './auth.utils';
+import { addDays, createRefreshToken, hashRefreshToken, normalizeCpf, normalizeDocument } from './auth.utils';
 import { AuthenticatedUser, JwtPayload } from './auth.types';
 
-const invalidCredentialsError = 'ID do estabelecimento ou senha inválidos';
+const invalidCredentialsError = 'CPF ou senha inválidos';
 const invalidTokenError = 'Refresh token inválido';
 
 const signAccessToken = async (app: FastifyInstance, user: AuthenticatedUser): Promise<{ accessToken: string; expiresAt: string }> => {
@@ -114,20 +114,20 @@ export const register = async (app: FastifyInstance, input: RegisterInput) => {
   };
 };
 
-export const login = async (app: FastifyInstance, establishmentId: string, password: string) => {
-  const tenantId = establishmentId.trim();
-  if (!tenantId) {
+export const login = async (app: FastifyInstance, cpf: string, password: string) => {
+  const cpfNormalized = normalizeCpf(cpf);
+  if (cpfNormalized.length !== 11) {
     return { statusCode: 401 as const, message: invalidCredentialsError };
   }
 
   const users = await prisma.user.findMany({
-    where: { tenantId, active: true },
+    where: { cpfNormalized, active: true },
     take: 2
   });
 
   if (users.length === 0) {
     const inactiveUser = await prisma.user.findFirst({
-      where: { tenantId, active: false }
+      where: { cpfNormalized, active: false }
     });
     if (inactiveUser) {
       return { statusCode: 403 as const, message: 'Usuário inativo' };

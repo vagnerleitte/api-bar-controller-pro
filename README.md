@@ -53,7 +53,6 @@ Observações:
 
 ## Seed padrão
 - Tenant: `Bar Demo`
-- ID do estabelecimento (tenantId): `11111111-1111-1111-1111-111111111111`
 - Usuário admin:
   - CPF (apenas referência do cadastro): `12345678901`
   - Senha: `Admin@123`
@@ -63,7 +62,7 @@ Observações:
   - body: `{ personName, establishmentName, document, address, email?, phone, password }`
   - cria tenant + usuário admin e já retorna `user + tokens`
 - `POST /auth/login`
-  - body: `{ establishmentId, password }`
+  - body: `{ cpf, password }`
   - retorna: `user + tokens`
 - `POST /auth/refresh`
   - body: `{ refreshToken }`
@@ -126,7 +125,7 @@ Observações:
 - Se existir linha para o tenant, ela sobrescreve env/default.
 
 ## Regras de segurança implementadas
-- Login por ID do estabelecimento + senha
+- Login por CPF + senha
 - Usuário inativo bloqueado (`403`)
 - `passwordHash` nunca retorna na API
 - refresh token salvo apenas como hash no banco

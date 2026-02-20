@@ -1,8 +1,8 @@
-# 1) Login por ID do estabelecimento (tenantId)
+# 1) Login por CPF + senha
 curl -X POST http://localhost:3000/auth/login \
   -H 'Content-Type: application/json' \
   -d '{
-    "establishmentId": "11111111-1111-1111-1111-111111111111",
+    "cpf": "123.456.789-01",
     "password": "Admin@123"
   }'
 

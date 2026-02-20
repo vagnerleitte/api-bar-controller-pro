@@ -68,12 +68,12 @@ components:
     LoginRequest:
       type: object
       additionalProperties: false
-      required: [establishmentId, password]
+      required: [cpf, password]
       properties:
-        establishmentId:
+        cpf:
           type: string
-          description: ID do estabelecimento (tenantId)
-          example: 11111111-1111-1111-1111-111111111111
+          description: CPF (aceita máscara, backend normaliza)
+          example: 123.456.789-01
         password:
           type: string
           format: password
@@ -313,7 +313,7 @@ paths:
   /auth/login:
     post:
       tags: [Auth]
-      summary: Login por estabelecimento + senha
+      summary: Login por CPF + senha
       description: |
         Autentica o usuário operacional do estabelecimento.
         Aplica rate limit básico.
@@ -345,7 +345,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               example:
-                message: ID do estabelecimento ou senha inválidos
+                message: CPF ou senha inválidos
         '403':
           description: Usuário inativo
           content:

@@ -15,10 +15,10 @@ export const registerBodySchema = {
 
 export const loginBodySchema = {
   type: 'object',
-  required: ['establishmentId', 'password'],
+  required: ['cpf', 'password'],
   additionalProperties: false,
   properties: {
-    establishmentId: { type: 'string', minLength: 1 },
+    cpf: { type: 'string', minLength: 1 },
     password: { type: 'string', minLength: 1 }
   }
 } as const;
