@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  seller
+}
+
+model Tenant {
+  id                 String   @id @default(uuid())
+  name               String
+  documentNormalized String?  @unique
+  address            String?
+  email              String?
+  phone              String?
+  createdAt          DateTime @default(now())
+
+  users         User[]
+  refreshTokens RefreshToken[]
+  featureToggles TenantFeatureToggle[]
+
+  @@map("tenants")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  tenantId      String
+  name          String
+  cpfNormalized String
+  role          Role
+  passwordHash  String
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@unique([tenantId, cpfNormalized])
+  @@index([cpfNormalized])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tenantId  String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([userId, tenantId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model FeatureToggle {
+  key            String               @id
+  description    String?
+  defaultEnabled Boolean              @default(false)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  tenantOverrides TenantFeatureToggle[]
+
+  @@map("feature_toggles")
+}
+
+model TenantFeatureToggle {
+  id         String      @id @default(uuid())
+  tenantId   String
+  featureKey String
+  enabled    Boolean
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  feature    FeatureToggle @relation(fields: [featureKey], references: [key], onDelete: Cascade)
+
+  @@unique([tenantId, featureKey])
+  @@index([featureKey])
+  @@map("tenant_feature_toggles")
+}

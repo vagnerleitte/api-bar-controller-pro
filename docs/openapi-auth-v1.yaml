@@ -1,0 +1,795 @@
+openapi: 3.0.3
+info:
+  title: Bar Controller Pro - API
+  version: 1.0.0
+  description: Contrato atual da API (auth + feature toggles + tenants)
+servers:
+  - url: http://localhost:3000
+tags:
+  - name: Auth
+    description: Autenticação e sessão
+  - name: Features
+    description: Feature toggles por tenant
+  - name: Tenants
+    description: Gestão de tenants (backoffice)
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Role:
+      type: string
+      enum: [admin, seller]
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message:
+          type: string
+          example: Token inválido
+
+
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [personName, establishmentName, document, address, phone, password]
+      properties:
+        personName:
+          type: string
+          example: Joao Silva
+        establishmentName:
+          type: string
+          example: Bar Centro
+        document:
+          type: string
+          description: CPF ou CNPJ
+          example: 12.345.678/0001-99
+        address:
+          type: string
+          example: Rua A, 100
+        email:
+          type: string
+          format: email
+          example: contato@barcentro.com
+        phone:
+          type: string
+          example: 11999998888
+        password:
+          type: string
+          format: password
+          example: Senha@123
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [establishmentId, password]
+      properties:
+        establishmentId:
+          type: string
+          description: ID do estabelecimento (tenantId)
+          example: 11111111-1111-1111-1111-111111111111
+        password:
+          type: string
+          format: password
+          example: Admin@123
+
+    UserAuth:
+      type: object
+      additionalProperties: false
+      required: [id, name, role, tenantId, cpf]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 22222222-2222-2222-2222-222222222222
+        name:
+          type: string
+          example: Admin Demo
+        role:
+          $ref: '#/components/schemas/Role'
+        tenantId:
+          type: string
+          format: uuid
+          example: 11111111-1111-1111-1111-111111111111
+        cpf:
+          type: string
+          description: CPF normalizado (somente dígitos)
+          example: '12345678901'
+
+    TokenPayload:
+      type: object
+      additionalProperties: false
+      required: [accessToken, refreshToken, expiresAt]
+      properties:
+        accessToken:
+          type: string
+          example: eyJhbGciOi...
+        refreshToken:
+          type: string
+          example: 4x8w4mM8...kF9
+        expiresAt:
+          type: string
+          format: date-time
+          example: 2026-02-18T15:30:00.000Z
+
+    LoginResponse:
+      type: object
+      additionalProperties: false
+      required: [user, tokens]
+      properties:
+        user:
+          $ref: '#/components/schemas/UserAuth'
+        tokens:
+          $ref: '#/components/schemas/TokenPayload'
+
+    RefreshRequest:
+      type: object
+      additionalProperties: false
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          example: 4x8w4mM8...kF9
+
+    RefreshResponse:
+      type: object
+      additionalProperties: false
+      required: [tenantId, tokens]
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+          example: 11111111-1111-1111-1111-111111111111
+        tokens:
+          $ref: '#/components/schemas/TokenPayload'
+
+    LogoutRequest:
+      type: object
+      additionalProperties: false
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          example: 4x8w4mM8...kF9
+
+    MeResponse:
+      $ref: '#/components/schemas/UserAuth'
+
+    FeatureItem:
+      type: object
+      additionalProperties: false
+      required: [key, enabled, source, description]
+      properties:
+        key:
+          type: string
+          example: advancedReports
+        enabled:
+          type: boolean
+          example: false
+        source:
+          type: string
+          enum: [default, env, tenant]
+          example: default
+        description:
+          type: string
+          example: Relatorios avancados
+
+    FeaturesMeResponse:
+      type: object
+      additionalProperties: false
+      required: [tenantId, features]
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+          example: 11111111-1111-1111-1111-111111111111
+        features:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeatureItem'
+
+    AdminUpdateFeatureRequest:
+      type: object
+      additionalProperties: false
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+          example: true
+
+    AdminUpdateFeatureResponse:
+      type: object
+      additionalProperties: false
+      required: [tenantId, feature]
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+          example: 11111111-1111-1111-1111-111111111111
+        feature:
+          $ref: '#/components/schemas/FeatureItem'
+
+    TenantItem:
+      type: object
+      additionalProperties: false
+      required: [id, name, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 11111111-1111-1111-1111-111111111111
+        name:
+          type: string
+          example: Bar Demo
+        createdAt:
+          type: string
+          format: date-time
+          example: 2026-02-20T12:00:00.000Z
+
+    TenantListResponse:
+      type: object
+      additionalProperties: false
+      required: [tenants]
+      properties:
+        tenants:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantItem'
+
+    CreateTenantRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+          example: Bar Centro
+
+    UpdateTenantRequest:
+      $ref: '#/components/schemas/CreateTenantRequest'
+
+paths:
+  /health:
+    get:
+      summary: Healthcheck
+      responses:
+        '200':
+          description: Serviço saudável
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        '503':
+          description: Dependência indisponível
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    example: error
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Cadastro inicial do estabelecimento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Cadastro criado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Payload inválido ou CPF/CNPJ já cadastrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login por estabelecimento + senha
+      description: |
+        Autentica o usuário operacional do estabelecimento.
+        Aplica rate limit básico.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login efetuado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Payload inválido
+        '401':
+          description: Credenciais inválidas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: ID do estabelecimento ou senha inválidos
+        '403':
+          description: Usuário inativo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Usuário inativo
+        '429':
+          description: Rate limit excedido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Muitas tentativas. Tente novamente em instantes.
+        '500':
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Erro interno do servidor
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Renovar sessão
+      description: Invalida o refresh atual e emite novo par de tokens (rotação).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Tokens renovados com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+        '400':
+          description: Payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Refresh token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Refresh token inválido
+        '500':
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Encerrar sessão
+      description: Invalida o refresh token informado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '204':
+          description: Logout realizado
+        '400':
+          description: Payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Refresh token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Refresh token inválido
+        '500':
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Usuário autenticado atual
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dados do usuário autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          description: Token inválido ou ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Token inválido
+        '403':
+          description: Usuário inativo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Usuário inativo
+        '500':
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /features/me:
+    get:
+      tags: [Features]
+      summary: Lista features resolvidas do tenant autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Features resolvidas para o tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeaturesMeResponse'
+        '401':
+          description: Token inválido ou ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Token inválido
+        '500':
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /features/advanced-reports/ping:
+    get:
+      tags: [Features]
+      summary: Endpoint de validação de feature protegida
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Feature habilitada
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [ok, feature]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  feature:
+                    type: string
+                    example: advancedReports
+        '401':
+          description: Token inválido ou ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Feature desabilitada para o estabelecimento
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Feature advancedReports desabilitada para este estabelecimento
+        '500':
+          description: Erro interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/tenants/{tenantId}/features:
+    get:
+      tags: [Features]
+      summary: Backoffice - listar features de um tenant
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: tenantId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Features resolvidas do tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeaturesMeResponse'
+        '401':
+          description: Token inválido ou ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Acesso restrito a admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Acesso restrito a administradores
+
+  /admin/tenants/{tenantId}/features/{featureKey}:
+    put:
+      tags: [Features]
+      summary: Backoffice - ativar/desativar feature por tenant
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: tenantId
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: path
+          name: featureKey
+          required: true
+          schema:
+            type: string
+            example: advancedReports
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateFeatureRequest'
+      responses:
+        '200':
+          description: Override atualizado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUpdateFeatureResponse'
+        '400':
+          description: Feature inválida ou payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token inválido ou ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Acesso restrito a admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/tenants:
+    get:
+      tags: [Tenants]
+      summary: Backoffice - listar tenants
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de tenants
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantListResponse'
+        '401':
+          description: Token inválido ou ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Acesso restrito a admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags: [Tenants]
+      summary: Backoffice - criar tenant
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantRequest'
+      responses:
+        '201':
+          description: Tenant criado com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantItem'
+        '400':
+          description: Payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token inválido ou ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Acesso restrito a admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /admin/tenants/{tenantId}:
+    get:
+      tags: [Tenants]
+      summary: Backoffice - detalhar tenant
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: tenantId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Tenant encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantItem'
+        '401':
+          description: Token inválido ou ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Acesso restrito a admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      tags: [Tenants]
+      summary: Backoffice - atualizar nome do tenant
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: tenantId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantRequest'
+      responses:
+        '200':
+          description: Tenant atualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantItem'
+        '400':
+          description: Payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token inválido ou ausente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Acesso restrito a admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant não encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
