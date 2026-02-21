@@ -46,31 +46,35 @@ const run = async () => {
     }
   });
 
-  await prisma.featureToggle.upsert({
-    where: { key: 'authV1' },
-    update: { description: 'Autenticacao REST V1', defaultEnabled: true },
-    create: { key: 'authV1', description: 'Autenticacao REST V1', defaultEnabled: true }
-  });
+  const toggles = [
+    { key: 'mensalistas', description: 'Gestao de mensalistas', defaultEnabled: false },
+    { key: 'comandas', description: 'Gestao de comandas', defaultEnabled: true },
+    { key: 'vendasAvulsas', description: 'Vendas avulsas', defaultEnabled: true },
+    { key: 'relatorios', description: 'Relatorios', defaultEnabled: false },
+    { key: 'usuarios', description: 'Gestao de usuarios', defaultEnabled: true },
+    { key: 'cadastro', description: 'Cadastro', defaultEnabled: true },
+    { key: 'authV1', description: 'Autenticacao REST V1', defaultEnabled: true },
+    { key: 'salesModule', description: 'Modulo de vendas', defaultEnabled: true },
+    { key: 'inventoryModule', description: 'Modulo de estoque', defaultEnabled: false },
+    { key: 'advancedReports', description: 'Relatorios avancados', defaultEnabled: false }
+  ];
 
-  await prisma.featureToggle.upsert({
-    where: { key: 'salesModule' },
-    update: { description: 'Modulo de vendas', defaultEnabled: true },
-    create: { key: 'salesModule', description: 'Modulo de vendas', defaultEnabled: true }
-  });
+  for (const toggle of toggles) {
+    await prisma.featureToggle.upsert({
+      where: { key: toggle.key },
+      update: {
+        description: toggle.description,
+        defaultEnabled: toggle.defaultEnabled
+      },
+      create: {
+        key: toggle.key,
+        description: toggle.description,
+        defaultEnabled: toggle.defaultEnabled
+      }
+    });
+  }
 
-  await prisma.featureToggle.upsert({
-    where: { key: 'inventoryModule' },
-    update: { description: 'Modulo de estoque', defaultEnabled: false },
-    create: { key: 'inventoryModule', description: 'Modulo de estoque', defaultEnabled: false }
-  });
-
-  await prisma.featureToggle.upsert({
-    where: { key: 'advancedReports' },
-    update: { description: 'Relatorios avancados', defaultEnabled: false },
-    create: { key: 'advancedReports', description: 'Relatorios avancados', defaultEnabled: false }
-  });
-
-  console.log('Seed finalizado. Login: establishmentId 11111111-1111-1111-1111-111111111111 | Senha Admin@123');
+  console.log('Seed finalizado. Login: CPF 12345678901 | Senha Admin@123');
 };
 
 run()

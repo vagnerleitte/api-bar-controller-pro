@@ -33,6 +33,19 @@ components:
         message:
           type: string
           example: Token inválido
+        errors:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [field, message]
+            properties:
+              field:
+                type: string
+                example: body.cpf
+              message:
+                type: string
+                example: campo obrigatório
 
 
     RegisterRequest:

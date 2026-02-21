@@ -93,6 +93,7 @@ Observações:
 ## Feature Toggle (novo)
 ### Como funciona
 - Catálogo em código: `src/modules/feature-toggle/feature-catalog.ts`
+- Features iniciais: `mensalistas`, `comandas`, `vendasAvulsas`, `relatorios`, `usuarios`, `cadastro`
 - Valor base por feature:
   - primeiro tenta override via env (`FEATURE_FLAGS`)
   - se não existir, usa `defaultEnabled` do catálogo
@@ -117,7 +118,7 @@ Observações:
 - Variável: `FEATURE_FLAGS`
 - Formato: `key:on|off,key2:on|off`
 - Exemplo:
-  - `FEATURE_FLAGS=salesModule:on,inventoryModule:off,advancedReports:on`
+  - `FEATURE_FLAGS=comandas:on,vendasAvulsas:on,relatorios:off`
 
 ### Override por tenant
 - Tabela: `tenant_feature_toggles`

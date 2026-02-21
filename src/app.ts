@@ -10,6 +10,68 @@ import { swaggerPlugin } from './plugins/swagger';
 import { tenantRoutes } from './modules/tenant/tenant.routes';
 import { healthRoutes } from './modules/health/health.routes';
 
+type ValidationIssue = {
+  field: string;
+  message: string;
+};
+
+const toDotPath = (instancePath: string): string => {
+  const cleaned = instancePath.replace(/^\//, '').replace(/\//g, '.');
+  return cleaned || 'body';
+};
+
+const formatValidationErrors = (validation: unknown): ValidationIssue[] => {
+  if (!Array.isArray(validation)) return [];
+
+  return validation.map((err) => {
+    if (!err || typeof err !== 'object') {
+      return { field: 'body', message: 'valor inválido' };
+    }
+
+    const e = err as {
+      instancePath?: string;
+      keyword?: string;
+      message?: string;
+      params?: Record<string, unknown>;
+    };
+
+    const fieldFromPath = toDotPath(e.instancePath ?? '');
+
+    if (e.keyword === 'required') {
+      const missing = typeof e.params?.missingProperty === 'string'
+        ? String(e.params.missingProperty)
+        : 'campo';
+      return { field: `body.${missing}`, message: 'campo obrigatório' };
+    }
+
+    if (e.keyword === 'additionalProperties') {
+      const prop = typeof e.params?.additionalProperty === 'string'
+        ? String(e.params.additionalProperty)
+        : 'desconhecido';
+      return { field: `body.${prop}`, message: 'campo não permitido' };
+    }
+
+    if (e.keyword === 'format') {
+      return { field: fieldFromPath, message: 'formato inválido' };
+    }
+
+    if (e.keyword === 'minLength') {
+      const limit = typeof e.params?.limit === 'number' ? e.params.limit : undefined;
+      return { field: fieldFromPath, message: limit ? `mínimo de ${limit} caracteres` : 'tamanho mínimo não atendido' };
+    }
+
+    if (e.keyword === 'maxLength') {
+      const limit = typeof e.params?.limit === 'number' ? e.params.limit : undefined;
+      return { field: fieldFromPath, message: limit ? `máximo de ${limit} caracteres` : 'tamanho máximo excedido' };
+    }
+
+    return {
+      field: fieldFromPath,
+      message: e.message ?? 'valor inválido'
+    };
+  });
+};
+
 declare module 'fastify' {
   interface FastifyInstance {
     env: typeof env;
@@ -35,7 +97,12 @@ export const buildApp = () => {
     const hasValidation = typeof error === 'object' && error !== null && 'validation' in error;
 
     if (hasValidation) {
-      return reply.status(400).send({ message: 'Payload inválido' });
+      const validation = (error as { validation?: unknown }).validation;
+      const errors = formatValidationErrors(validation);
+      return reply.status(400).send({
+        message: 'Payload inválido',
+        errors
+      });
     }
 
     if (statusCode === 429) {
