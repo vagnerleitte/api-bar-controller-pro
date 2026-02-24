@@ -86,3 +86,16 @@ export const setTenantFeatureOverride = async (
     }
   };
 };
+
+export const deleteTenantFeatureOverride = async (tenantId: string, featureKey: FeatureKey) => {
+  const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+  if (!tenant) {
+    return { statusCode: 404 as const, message: 'Tenant não encontrado' };
+  }
+
+  await prisma.tenantFeatureToggle.deleteMany({
+    where: { tenantId, featureKey }
+  });
+
+  return { statusCode: 204 as const };
+};
