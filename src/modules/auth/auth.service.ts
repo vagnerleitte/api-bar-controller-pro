@@ -4,12 +4,13 @@ import { prisma } from '../../shared/prisma';
 import { env } from '../../config/env';
 import { addDays, createRefreshToken, hashRefreshToken, normalizeCpf, normalizeDocument } from './auth.utils';
 import { AuthenticatedUser, JwtPayload } from './auth.types';
+import { getScopeForRole, normalizeRole } from './auth.authorization';
 
 const invalidCredentialsError = 'CPF ou senha inválidos';
 const invalidTokenError = 'Refresh token inválido';
 
 const signAccessToken = async (app: FastifyInstance, user: AuthenticatedUser): Promise<{ accessToken: string; expiresAt: string }> => {
-  const accessToken = await app.jwt.sign({ tenantId: user.tenantId, role: user.role } as JwtPayload, {
+  const accessToken = await app.jwt.sign({ tenantId: user.tenantId, role: user.role, scope: user.scope } as JwtPayload, {
     sub: user.id,
     expiresIn: `${env.ACCESS_TOKEN_TTL_MINUTES}m`
   });
@@ -79,7 +80,7 @@ export const register = async (app: FastifyInstance, input: RegisterInput) => {
         tenantId: tenant.id,
         name: input.personName.trim(),
         cpfNormalized: documentNormalized.slice(0, 11),
-        role: 'admin',
+        role: 'owner',
         passwordHash,
         active: true
       }
@@ -91,7 +92,8 @@ export const register = async (app: FastifyInstance, input: RegisterInput) => {
   const authUser: AuthenticatedUser = {
     id: created.user.id,
     tenantId: created.user.tenantId,
-    role: created.user.role
+    role: created.user.role,
+    scope: getScopeForRole(created.user.role)
   };
 
   const access = await signAccessToken(app, authUser);
@@ -152,7 +154,8 @@ export const login = async (app: FastifyInstance, cpf: string, password: string)
   const authUser: AuthenticatedUser = {
     id: user.id,
     tenantId: user.tenantId,
-    role: user.role
+    role: user.role,
+    scope: getScopeForRole(user.role)
   };
 
   const access = await signAccessToken(app, authUser);
@@ -218,7 +221,8 @@ export const refresh = async (app: FastifyInstance, rawRefreshToken: string) => 
   const authUser: AuthenticatedUser = {
     id: user.id,
     tenantId: user.tenantId,
-    role: user.role
+    role: user.role,
+    scope: getScopeForRole(user.role)
   };
 
   const access = await signAccessToken(app, authUser);
@@ -254,12 +258,53 @@ export const logout = async (rawRefreshToken: string) => {
   return { statusCode: 204 as const };
 };
 
+export const resetPasswordByCpf = async (cpf: string, newPassword: string) => {
+  const cpfNormalized = normalizeCpf(cpf);
+  if (cpfNormalized.length !== 11) {
+    return { statusCode: 400 as const, message: 'CPF inválido' };
+  }
+
+  const users = await prisma.user.findMany({
+    where: { cpfNormalized },
+    take: 2
+  });
+
+  if (users.length !== 1) {
+    return { statusCode: 404 as const, message: 'Usuário não encontrado para o CPF informado' };
+  }
+
+  const user = users[0];
+  const passwordHash = await argon2.hash(newPassword);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: user.id },
+      data: { passwordHash }
+    });
+
+    await tx.refreshToken.updateMany({
+      where: {
+        userId: user.id,
+        revokedAt: null
+      },
+      data: {
+        revokedAt: new Date()
+      }
+    });
+  });
+
+  return {
+    statusCode: 200 as const,
+    data: {
+      message: 'Senha atualizada com sucesso',
+      cpf: cpfNormalized
+    }
+  };
+};
+
 export const me = async (user: AuthenticatedUser) => {
   const dbUser = await prisma.user.findFirst({
-    where: {
-      id: user.id,
-      tenantId: user.tenantId
-    }
+    where: user.tenantId ? { id: user.id, tenantId: user.tenantId } : { id: user.id }
   });
 
   if (!dbUser) {
@@ -278,6 +323,79 @@ export const me = async (user: AuthenticatedUser) => {
       role: dbUser.role,
       tenantId: dbUser.tenantId,
       cpf: dbUser.cpfNormalized
+    }
+  };
+};
+
+type ListUsersInput = {
+  user: AuthenticatedUser;
+  search?: string;
+  page: number;
+  limit: number;
+  tenantId?: string;
+};
+
+export const listUsers = async (input: ListUsersInput) => {
+  const normalizedRole = normalizeRole(input.user.role);
+  const isSystemAdmin = normalizedRole === 'system_admin';
+  if (!isSystemAdmin && !input.user.tenantId) {
+    return { statusCode: 403 as const, message: 'Permissão insuficiente para esta operação' };
+  }
+  const targetTenantId = input.tenantId
+    ? input.tenantId
+    : (isSystemAdmin ? undefined : input.user.tenantId);
+  const skip = (input.page - 1) * input.limit;
+  const search = input.search?.trim();
+
+  const where = {
+    ...(targetTenantId ? { tenantId: targetTenantId } : {}),
+    ...(search
+      ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' as const } },
+            { cpfNormalized: { contains: normalizeCpf(search) } }
+          ]
+        }
+      : {})
+  };
+
+  const [items, total] = await prisma.$transaction([
+    prisma.user.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: input.limit,
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        tenantId: true,
+        cpfNormalized: true,
+        active: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    }),
+    prisma.user.count({ where })
+  ]);
+
+  return {
+    statusCode: 200 as const,
+    data: {
+      tenantId: targetTenantId ?? null,
+      page: input.page,
+      limit: input.limit,
+      total,
+      items: items.map((u) => ({
+        id: u.id,
+        name: u.name,
+        role: u.role,
+        tenantId: u.tenantId,
+        cpf: u.cpfNormalized,
+        active: u.active,
+        createdAt: u.createdAt,
+        updatedAt: u.updatedAt
+      }))
     }
   };
 };

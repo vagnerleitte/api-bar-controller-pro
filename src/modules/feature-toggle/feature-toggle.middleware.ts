@@ -6,6 +6,9 @@ export const requireFeature = (feature: FeatureKey) => {
     if (!request.authUser) {
       return reply.status(401).send({ message: 'Token inválido' });
     }
+    if (!request.authUser.tenantId) {
+      return reply.status(403).send({ message: 'Usuário sem tenant não pode acessar features de tenant' });
+    }
 
     const enabled = await request.server.featureToggle.isEnabled(feature, request.authUser.tenantId);
     if (!enabled) {

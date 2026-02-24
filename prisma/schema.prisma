@@ -8,8 +8,12 @@ datasource db {
 }
 
 enum Role {
-  admin
+  owner
+  operator
   seller
+  system_admin
+  backoffice_operator
+  admin
 }
 
 model Tenant {
@@ -21,8 +25,8 @@ model Tenant {
   phone              String?
   createdAt          DateTime @default(now())
 
-  users         User[]
-  refreshTokens RefreshToken[]
+  users          User[]
+  refreshTokens  RefreshToken[]
   featureToggles TenantFeatureToggle[]
 
   @@map("tenants")
@@ -30,7 +34,7 @@ model Tenant {
 
 model User {
   id            String   @id @default(uuid())
-  tenantId      String
+  tenantId      String?
   name          String
   cpfNormalized String
   role          Role
@@ -39,7 +43,7 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant        Tenant?        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   refreshTokens RefreshToken[]
 
   @@unique([tenantId, cpfNormalized])
@@ -50,14 +54,14 @@ model User {
 model RefreshToken {
   id        String    @id @default(uuid())
   userId    String
-  tenantId  String
+  tenantId  String?
   tokenHash String    @unique
   expiresAt DateTime
   revokedAt DateTime?
   createdAt DateTime  @default(now())
 
   user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant    Tenant? @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([userId, tenantId])
   @@index([expiresAt])
@@ -65,11 +69,11 @@ model RefreshToken {
 }
 
 model FeatureToggle {
-  key            String               @id
+  key            String   @id
   description    String?
-  defaultEnabled Boolean              @default(false)
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  defaultEnabled Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   tenantOverrides TenantFeatureToggle[]
 
@@ -77,15 +81,15 @@ model FeatureToggle {
 }
 
 model TenantFeatureToggle {
-  id         String      @id @default(uuid())
+  id         String   @id @default(uuid())
   tenantId   String
   featureKey String
   enabled    Boolean
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  tenant     Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  feature    FeatureToggle @relation(fields: [featureKey], references: [key], onDelete: Cascade)
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  feature FeatureToggle @relation(fields: [featureKey], references: [key], onDelete: Cascade)
 
   @@unique([tenantId, featureKey])
   @@index([featureKey])

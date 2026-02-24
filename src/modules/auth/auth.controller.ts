@@ -1,5 +1,5 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import { login, logout, me, refresh, register } from './auth.service';
+import { listUsers, login, logout, me, refresh, register, resetPasswordByCpf } from './auth.service';
 
 type RegisterBody = {
   personName: string;
@@ -12,7 +12,9 @@ type RegisterBody = {
 };
 
 type LoginBody = { cpf: string; password: string };
+type ResetPasswordBody = { cpf: string; newPassword: string };
 type RefreshBody = { refreshToken: string };
+type ListUsersQuery = { search?: string; page?: number; limit?: number; tenantId?: string };
 
 export const registerHandler = async (request: FastifyRequest<{ Body: RegisterBody }>, reply: FastifyReply) => {
   const result = await register(request.server, request.body);
@@ -28,6 +30,15 @@ export const loginHandler = async (request: FastifyRequest<{ Body: LoginBody }>,
     return reply.status(result.statusCode).send({ message: result.message });
   }
   return reply.status(200).send({ user: result.user, tokens: result.tokens });
+};
+
+export const resetPasswordHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  const { cpf, newPassword } = request.body as ResetPasswordBody;
+  const result = await resetPasswordByCpf(cpf, newPassword);
+  if (result.statusCode !== 200) {
+    return reply.status(result.statusCode).send({ message: result.message });
+  }
+  return reply.status(200).send(result.data);
 };
 
 export const refreshHandler = async (request: FastifyRequest<{ Body: RefreshBody }>, reply: FastifyReply) => {
@@ -57,4 +68,27 @@ export const meHandler = async (request: FastifyRequest, reply: FastifyReply) =>
   }
 
   return reply.status(200).send(result.user);
+};
+
+export const listUsersHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+  if (!request.authUser) {
+    return reply.status(401).send({ message: 'Token inválido' });
+  }
+
+  const query = request.query as ListUsersQuery;
+  const page = query.page ?? 1;
+  const limit = query.limit ?? 20;
+  const result = await listUsers({
+    user: request.authUser,
+    search: query.search,
+    page,
+    limit,
+    tenantId: query.tenantId
+  });
+
+  if ('message' in result) {
+    return reply.status(result.statusCode).send({ message: result.message });
+  }
+
+  return reply.status(result.statusCode).send(result.data);
 };

@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { authenticate } from '../auth/auth.middleware';
-import { requireAdmin } from '../auth/auth.authorization';
-import { isFeatureKey, listTenantFeatures, setTenantFeatureOverride } from './feature-toggle.service';
+import { requireSystemAdminAccess } from '../auth/auth.authorization';
+import { deleteTenantFeatureOverride, isFeatureKey, listTenantFeatures, setTenantFeatureOverride } from './feature-toggle.service';
 import { requireFeature } from './feature-toggle.middleware';
 import {
   tenantFeatureParamsSchema,
@@ -15,6 +15,9 @@ export const featureToggleRoutes = async (app: FastifyInstance) => {
   }, async (request, reply) => {
     if (!request.authUser) {
       return reply.status(401).send({ message: 'Token inválido' });
+    }
+    if (!request.authUser.tenantId) {
+      return reply.status(403).send({ message: 'Usuário sem tenant não pode consultar features de tenant' });
     }
 
     const items = await listTenantFeatures(request.authUser.tenantId);
@@ -30,8 +33,8 @@ export const featureToggleRoutes = async (app: FastifyInstance) => {
     return reply.status(200).send({ ok: true, feature: 'advancedReports' });
   });
 
-  app.get('/admin/tenants/:tenantId/features', {
-    preHandler: [authenticate, requireAdmin],
+  app.get('/internal/clients/:tenantId/feature-toggles', {
+    preHandler: [authenticate, requireSystemAdminAccess],
     schema: { params: tenantParamsSchema }
   }, async (request, reply) => {
     const { tenantId } = request.params as { tenantId: string };
@@ -39,8 +42,8 @@ export const featureToggleRoutes = async (app: FastifyInstance) => {
     return reply.status(200).send({ tenantId, features: items });
   });
 
-  app.put('/admin/tenants/:tenantId/features/:featureKey', {
-    preHandler: [authenticate, requireAdmin],
+  app.put('/internal/clients/:tenantId/feature-toggles/:featureKey', {
+    preHandler: [authenticate, requireSystemAdminAccess],
     schema: {
       params: tenantFeatureParamsSchema,
       body: updateTenantFeatureBodySchema
@@ -59,5 +62,25 @@ export const featureToggleRoutes = async (app: FastifyInstance) => {
     }
 
     return reply.status(200).send(result.data);
+  });
+
+  app.delete('/internal/clients/:tenantId/feature-toggles/:featureKey', {
+    preHandler: [authenticate, requireSystemAdminAccess],
+    schema: {
+      params: tenantFeatureParamsSchema
+    }
+  }, async (request, reply) => {
+    const { tenantId, featureKey } = request.params as { tenantId: string; featureKey: string };
+
+    if (!isFeatureKey(featureKey)) {
+      return reply.status(400).send({ message: 'Feature inválida' });
+    }
+
+    const result = await deleteTenantFeatureOverride(tenantId, featureKey);
+    if (result.statusCode !== 204) {
+      return reply.status(result.statusCode).send({ message: result.message });
+    }
+
+    return reply.status(204).send();
   });
 };
